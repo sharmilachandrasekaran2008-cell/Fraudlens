@@ -781,47 +781,45 @@ if data is not None:
             if total > 100:
                 st.caption("Chart displays the first 100 transactions.")
 
-        
-# Results table and risk classification guide
-st.markdown("#### 🧾 Transaction-Level Results")
-
-st.markdown("""
-<div style="
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
-    gap:12px;
-    margin:12px 0 18px;
-">
-    <div style="
-        background:#102B2B;
-        border:1px solid #287E70;
-        border-radius:12px;
-        padding:16px;
-    ">
-        <div style="color:#65E8C9;font-weight:700;">
-            HIGH RISK
-        </div>
-        <div style="color:#D7E6EF;font-size:13px;margin-top:7px;">
-            Flagged by the model. Review the transaction using
+        # Results table and risk classification guide
+        st.markdown("#### 🧾 Transaction-Level Results")
+        st.markdown("""
+        <div style="
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+            gap:12px;
+            margin:12px 0 18px;
+        ">
+            <div style="
+                background:#102B2B;
+                border:1px solid #287E70;
+                border-radius:12px;
+                padding:16px;
+            ">
+                <div style="color:#65E8C9;font-weight:700;">
+                    HIGH RISK
+                </div>
+                <div style="color:#D7E6EF;font-size:13px;margin-top:7px;">
+                    Flagged by the model. Review the transaction using
             verified records before taking action.
-        </div>
-    </div>
-    <div style="
-        background:#102438;
-        border:1px solid #315C78;
-        border-radius:12px;
-        padding:16px;
-    ">
-        <div style="color:#8CCBFF;font-weight:700;">
-            LOW RISK
-        </div>
-        <div style="color:#D7E6EF;font-size:13px;margin-top:7px;">
-            Not flagged at the current threshold. This does not
-            rule out fraud; continue normal monitoring.
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+                </div>
+            </div>
+            <div style="
+                background:#102438;
+                border:1px solid #315C78;
+                border-radius:12px;
+                padding:16px;
+            ">
+                <div style="color:#8CCBFF;font-weight:700;">
+                    LOW RISK
+                </div>
+                <div style="color:#D7E6EF;font-size:13px;margin-top:7px;">
+                    Not flagged at the current threshold. This does not
+                    rule out fraud; continue normal monitoring.
+                </div>
+            </div>
+         </div>
+         """, unsafe_allow_html=True)
 
         risk_filter = st.selectbox(
             "Filter by risk level",
@@ -844,15 +842,61 @@ st.markdown("""
             use_container_width=True,
             hide_index=True
         )
+              
+# --------------------------------------------------
+# DOWNLOAD RESULTS | CSV, EXCEL, PDF
+# --------------------------------------------------
+st.markdown("#### 📥 Export Your Analysis")
+st.caption(
+    "Download the full transaction results or a shareable PDF summary."
+)
 
-        st.download_button(
-            "⬇️ Download Analysis Results",
-            data=results.to_csv(index=False).encode("utf-8"),
-            file_name="fraudlens_fraud_analysis.csv",
-            mime="text/csv",
-            use_container_width=True
+csv_col, excel_col, pdf_col = st.columns(3)
+
+with csv_col:
+    st.download_button(
+        "⬇️ Download CSV",
+        data=results.to_csv(index=False).encode("utf-8"),
+        file_name="fraudlens_fraud_analysis.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="download_csv",
+    )
+
+with excel_col:
+    excel_bytes = make_excel_report(
+        results, total, flagged, avg_probability, threshold
+    )
+    st.download_button(
+        "📊 Download Excel",
+        data=excel_bytes,
+        file_name="fraudlens_fraud_analysis.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        key="download_excel",
+    )
+
+with pdf_col:
+    try:
+        pdf_bytes = make_pdf_report(
+            results, total, flagged, avg_probability, threshold
         )
+        st.download_button(
+            "📄 Download PDF",
+            data=pdf_bytes,
+            file_name="fraudlens_fraud_report.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key="download_pdf",
+        )
+    except Exception as e:
+        st.error("PDF generation failed. Check the report dependencies.")
+        with st.expander("PDF error details"):
+            st.code(f"{type(e).__name__}: {e}")
+   
+        
 
+   
         st.caption(
             "Risk labels are based on the saved model's decision "
             "threshold. Model performance depends on the training data "
