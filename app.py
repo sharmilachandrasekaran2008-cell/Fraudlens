@@ -1,5 +1,5 @@
 import base64
-
+from io import BytesIO
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -29,6 +29,143 @@ LOGO_URI = (
 
 MODEL_PATH = APP_DIR / "fraud_detection_model_v2.joblib"
 SAMPLE_PATH = APP_DIR / "sample_transactions.csv"
+
+# --------------------------------------------------
+# DOWNLOAD REPORT HELPERS
+# --------------------------------------------------
+def make_excel_report(results, total, flagged, avg_probability, threshold):
+    output = BytesIO()
+
+    summary = pd.DataFrame({
+        "Metric": [
+            "Transactions analyzed",
+            "High-risk flags",
+            "Low-risk predictions",
+            "Average estimated fraud probability (%)",
+            "Decision threshold (%)",
+        ],
+        "Value": [
+            total,
+            flagged,
+            total - flagged,
+            round(avg_probability, 2),
+            round(threshold * 100, 2),
+        ],
+    })
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        summary.to_excel(writer, sheet_name="Summary", index=False)
+        results.to_excel(writer, sheet_name="Transactions", index=False)
+
+    output.seek(0)
+    return output.getvalue()
+
+
+def make_pdf_report(results, total, flagged, avg_probability, threshold):
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    )
+
+    output = BytesIO()
+
+    doc = SimpleDocTemplate(
+        output,
+        pagesize=landscape(A4),
+        rightMargin=12 * mm,
+        leftMargin=12 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name="ReportTitle",
+        parent=styles["Title"],
+        textColor=colors.HexColor("#0C766E"),
+        alignment=TA_CENTER,
+        fontSize=20,
+        leading=24,
+        spaceAfter=8,
+    ))
+
+    story = [
+        Paragraph("FRAUDLENS", styles["ReportTitle"]),
+        Paragraph("Fraud Risk Intelligence — Analysis Report",
+                  styles["Heading2"]),
+        Spacer(1, 5 * mm),
+        Paragraph(f"Transactions analyzed: {total:,}", styles["Normal"]),
+        Paragraph(f"High-risk flags: {flagged:,}", styles["Normal"]),
+        Paragraph(f"Low-risk predictions: {total - flagged:,}",
+                  styles["Normal"]),
+        Paragraph(
+            f"Average estimated fraud probability: {avg_probability:.2f}%",
+            styles["Normal"]
+        ),
+        Paragraph(
+            f"Decision threshold: {threshold:.2%}",
+            styles["Normal"]
+        ),
+        Spacer(1, 5 * mm),
+        Paragraph("Transaction Results (first 50 rows)", styles["Heading2"]),
+    ]
+
+    # Keep the PDF readable even when the source has many model features.
+    preferred_columns = [
+        "Fraud Probability (%)",
+        "Predicted Fraud",
+        "Risk Level",
+        "Recommended Action",
+    ]
+    visible_columns = [
+        col for col in preferred_columns if col in results.columns
+    ]
+
+    pdf_data = [["Transaction #"] + visible_columns]
+
+    for row_number, (_, row) in enumerate(
+        results[visible_columns].head(50).iterrows(), start=1
+    ):
+        values = [str(row_number)]
+        for col in visible_columns:
+            value = row[col]
+            values.append("" if pd.isna(value) else str(value))
+        pdf_data.append(values)
+
+    table = Table(pdf_data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#102D3A")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("LEADING", (0, 0), (-1, -1), 10),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#B9C8D3")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [
+            colors.white, colors.HexColor("#EFF5F7")
+        ]),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+    ]))
+
+    story.extend([
+        table,
+        Spacer(1, 5 * mm),
+        Paragraph(
+            "Important: These are machine-learning estimates, not "
+            "confirmed fraud findings. This PDF displays at most 50 "
+            "transactions; use the CSV or Excel export for the full results.",
+            styles["Normal"]
+        ),
+    ])
+
+    doc.build(story)
+    output.seek(0)
+    return output.getvalue()
 
 # --------------------------------------------------
 # FRAUDLENS | PREMIUM DARK NAVY + TEAL THEME
@@ -581,6 +718,12 @@ if data is not None:
         results["Risk Level"] = np.where(
             predictions == 1, "High Risk", "Low Risk"
         )
+        
+        results["Recommended Action"] = np.where(
+            predictions == 1,
+            "Review transaction",
+            "Routine monitoring"
+        )
 
         total = len(results)
         flagged = int(predictions.sum())
@@ -638,8 +781,48 @@ if data is not None:
             if total > 100:
                 st.caption("Chart displays the first 100 transactions.")
 
-        # Results table
-        st.markdown("#### 🧾 Transaction-Level Results")
+        
+# Results table and risk classification guide
+st.markdown("#### 🧾 Transaction-Level Results")
+
+st.markdown("""
+<div style="
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+    gap:12px;
+    margin:12px 0 18px;
+">
+    <div style="
+        background:#102B2B;
+        border:1px solid #287E70;
+        border-radius:12px;
+        padding:16px;
+    ">
+        <div style="color:#65E8C9;font-weight:700;">
+            HIGH RISK
+        </div>
+        <div style="color:#D7E6EF;font-size:13px;margin-top:7px;">
+            Flagged by the model. Review the transaction using
+            verified records before taking action.
+        </div>
+    </div>
+    <div style="
+        background:#102438;
+        border:1px solid #315C78;
+        border-radius:12px;
+        padding:16px;
+    ">
+        <div style="color:#8CCBFF;font-weight:700;">
+            LOW RISK
+        </div>
+        <div style="color:#D7E6EF;font-size:13px;margin-top:7px;">
+            Not flagged at the current threshold. This does not
+            rule out fraud; continue normal monitoring.
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
         risk_filter = st.selectbox(
             "Filter by risk level",
             ["All transactions", "High Risk", "Low Risk"]
