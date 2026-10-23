@@ -240,6 +240,7 @@ if sample_clicked:
 data = None
 
 if uploaded_file is not None:
+    st.session_state["use_sample"] = False
     try:
         data = pd.read_csv(uploaded_file)
         st.info("📄 Your uploaded dataset is selected.")
@@ -248,8 +249,8 @@ if uploaded_file is not None:
             "We couldn't read this file. Please upload a valid CSV file."
         )
         st.stop()
-
-elif sample_clicked:
+        
+elif st.session_state["use_sample"]:
     try:
         data = pd.read_csv(SAMPLE_PATH)
         st.success("🌟 Sample dataset loaded! Let's explore the results.")
@@ -442,12 +443,14 @@ if data is not None:
             "and should be validated against verified labels."
         )
 
-    except Exception:
+    
+    except Exception as e:
         st.error(
-            "The analysis could not be completed. Please verify that "
-            "your dataset matches the model's expected feature format."
+            "The analysis could not be completed. "
+            "Please verify the dataset and model configuration."
         )
-
+        with st.expander("Technical details"):
+            st.code(f"{type(e).__name__}: {e}")
 else:
     st.info(
         "👋 Welcome! Upload a compatible CSV or select "
