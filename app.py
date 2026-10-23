@@ -1,41 +1,39 @@
+
 import base64
-
-import streamlit as st
-import pandas as pd
-import numpy as np
-import joblib
-
 from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+import streamlit as st
 
 # --------------------------------------------------
 # PAGE CONFIGURATION
 # --------------------------------------------------
 
 APP_DIR = Path(__file__).resolve().parent
+
 st.set_page_config(
     page_title="FRAUDLENS | Fraud Risk Intelligence",
     page_icon="🔐",
     layout="wide",
-    initial_sidebar_state="expanded"
-)
-LOGO_PATH = APP_DIR / "fraudlens_logo.svg"
-LOGO_URI = (
-    "data:image/svg+xml;base64,"
-    + base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
-    if LOGO_PATH.exists()
-    else ""
+    initial_sidebar_state="expanded",
 )
 
+LOGO_PATH = APP_DIR / "fraudlens_logo.svg"
 MODEL_PATH = APP_DIR / "fraud_detection_model_v2.joblib"
 SAMPLE_PATH = APP_DIR / "sample_transactions.csv"
 
 # --------------------------------------------------
 # PROFESSIONAL DARK THEME
 # --------------------------------------------------
+
 st.markdown("""
 <style>
 .stApp {
-    background: linear-gradient(145deg, #07111F 0%, #0B1728 55%, #101F32 100%);
+    background: linear-gradient(
+        145deg, #07111F 0%, #0B1728 55%, #101F32 100%
+    );
     color: #E8F0FA;
 }
 [data-testid="stSidebar"] {
@@ -121,52 +119,272 @@ hr {
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# MODEL LOADING
+# LOAD SAVED MODEL
 # --------------------------------------------------
+
 @st.cache_resource
 def load_bundle(model_path):
     return joblib.load(model_path)
 
+
 try:
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(
+            f"Model file not found: {MODEL_PATH.name}"
+        )
+
     bundle = load_bundle(str(MODEL_PATH))
+
     model = bundle["model"]
     scaler = bundle["scaler"]
     threshold = float(bundle["threshold"])
     feature_columns = list(bundle["feature_columns"])
-except Exception:
+
+    if not feature_columns:
+        raise ValueError("The saved model has no feature columns.")
+
+    if len(feature_columns) != len(set(feature_columns)):
+        raise ValueError("The model contains duplicate feature names.")
+
+    if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+        raise ValueError("The saved decision threshold is invalid.")
+
+    if not callable(getattr(model, "predict_proba", None)):
+        raise ValueError(
+            "The saved model does not support predict_proba()."
+        )
+
+except Exception as exc:
     st.error(
-        "We couldn't load the saved model. Please check that "
-        "the model file is present in the application folder."
+        "The saved model could not be loaded. Check that "
+        "`fraud_detection_model_v2.joblib` exists and contains "
+        "the expected model, scaler, threshold and feature columns."
     )
+    st.caption(f"Technical detail: {exc}")
     st.stop()
+
+# --------------------------------------------------
+# HELPER FUNCTIONS
+# --------------------------------------------------
+
+def read_csv_safely(file):
+    """Read a CSV and report common file-format problems."""
+
+    try:
+        df = pd.read_csv(file, encoding="utf-8-sig")
+
+    except pd.errors.EmptyDataError as exc:
+        raise ValueError(
+            "The CSV is empty or does not contain a header row."
+        ) from exc
+
+    except pd.errors.ParserError as exc:
+        raise ValueError(
+            "The CSV format is invalid. Check quotation marks, "
+            "separators and rows with inconsistent column counts."
+        ) from exc
+
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            "The file encoding could not be read. Save it as a "
+            "UTF-8 CSV and upload it again."
+        ) from exc
+
+    except Exception as exc:
+        raise ValueError(
+            f"The file could not be read ({type(exc).__name__})."
+        ) from exc
+
+    # Normalize accidental spaces in headers.
+    df.columns = [
+        col.strip() if isinstance(col, str) else col
+        for col in df.columns
+    ]
+
+    if df.columns.duplicated().any():
+        duplicates = df.columns[
+            df.columns.duplicated()
+        ].tolist()
+
+        raise ValueError(
+            "Duplicate column names were found: "
+            + ", ".join(map(str, duplicates))
+            + ". Rename duplicate columns and upload again."
+        )
+
+    if df.empty:
+        raise ValueError(
+            "The CSV contains headers but no transaction rows."
+        )
+
+    return df
+
+
+def validate_features(df):
+    """Validate model features without changing their meanings."""
+
+    if len(df) > 100000:
+        raise ValueError(
+            "This demo supports up to 100,000 rows per upload. "
+            "Split the CSV into smaller files."
+        )
+
+    missing = [
+        col for col in feature_columns
+        if col not in df.columns
+    ]
+
+    if missing:
+        preview = ", ".join(map(str, missing[:15]))
+
+        if len(missing) > 15:
+            preview += f", and {len(missing) - 15} more"
+
+        raise ValueError(
+            f"{len(missing)} required model feature(s) are missing: "
+            f"{preview}. Upload a dataset compatible with the saved "
+            "model's original feature format."
+        )
+
+    # Use only the saved model's required features.
+    X = df[feature_columns].copy()
+
+    # Detect missing cells before numeric conversion.
+    missing_counts = X.isna().sum()
+    missing_columns = missing_counts[missing_counts > 0]
+
+    if not missing_columns.empty:
+        details = ", ".join(
+            f"{col} ({count} missing)"
+            for col, count in missing_columns.items()
+        )
+
+        raise ValueError(
+            "Missing values were found in: "
+            + details
+            + ". Correct these cells before uploading again."
+        )
+
+    # Convert feature values to numbers.
+    for col in feature_columns:
+        converted = pd.to_numeric(X[col], errors="coerce")
+        invalid_mask = converted.isna()
+
+        if invalid_mask.any():
+            count = int(invalid_mask.sum())
+
+            raise ValueError(
+                f"Column '{col}' contains {count} blank or "
+                "non-numeric value(s). Check the affected cells."
+            )
+
+        X[col] = converted
+
+    try:
+        values = X.to_numpy(dtype=float)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(
+            "Some feature values cannot be represented as numbers."
+        ) from exc
+
+    if not np.isfinite(values).all():
+        raise ValueError(
+            "Infinite or invalid numeric values were found. "
+            "Correct the affected cells before continuing."
+        )
+
+    return X
+
+
+def predict_transactions(X):
+    """Use the original scaler, model and decision threshold."""
+
+    X_model = X.copy()
+
+    # Preserve the original preprocessing behavior.
+    if "Time" in feature_columns and "Amount" in feature_columns:
+        X_model[["Time", "Amount"]] = scaler.transform(
+            X_model[["Time", "Amount"]]
+        )
+
+    probabilities_all = model.predict_proba(X_model)
+
+    if (
+        probabilities_all.ndim != 2
+        or probabilities_all.shape[0] != len(X_model)
+        or probabilities_all.shape[1] < 2
+    ):
+        raise ValueError(
+            "The model returned an unexpected prediction format."
+        )
+
+    # Preserve the original assumption that column 1 is the
+    # fraud-class probability.
+    probabilities = probabilities_all[:, 1]
+
+    if not np.isfinite(probabilities).all():
+        raise ValueError(
+            "The model returned invalid probability values."
+        )
+
+    if ((probabilities < 0) | (probabilities > 1)).any():
+        raise ValueError(
+            "The model returned probabilities outside the 0–1 range."
+        )
+
+    predictions = (probabilities >= threshold).astype(int)
+
+    return probabilities, predictions
 
 # --------------------------------------------------
 # HEADER
 # --------------------------------------------------
-st.markdown(f"""
-<div class="hero">
-    <div class="eyebrow">INTELLIGENCE • ANALYTICS • SECURITY</div>
-    {
+
+LOGO_URI = ""
+
+if LOGO_PATH.exists():
+    try:
+        LOGO_URI = (
+            "data:image/svg+xml;base64,"
+            + base64.b64encode(
+                LOGO_PATH.read_bytes()
+            ).decode("utf-8")
+        )
+    except OSError:
+        LOGO_URI = ""
+
+if LOGO_URI:
+    brand_html = (
         f'<img src="{LOGO_URI}" alt="FRAUDLENS logo" '
         'style="width:100%;max-width:440px;height:auto;'
         'display:block;margin:12px auto 18px;">'
-        if LOGO_URI else '<h1>FRAUDLENS</h1>'
-    }
+    )
+else:
+    brand_html = "<h1>FRAUDLENS</h1>"
+
+st.markdown(f"""
+<div class="hero">
+    <div class="eyebrow">INTELLIGENCE • ANALYTICS • SECURITY</div>
+    {brand_html}
     <p><b>Fraud Risk Intelligence Platform</b></p>
-    <p>Explore transaction patterns, estimate fraud risk, and turn
-       model predictions into clear, actionable insights.</p>
+    <p>
+        Explore transaction patterns, estimate fraud risk, and turn
+        model predictions into clear, actionable insights.
+    </p>
 </div>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------
 # SIDEBAR
 # --------------------------------------------------
+
 with st.sidebar:
-    
     st.caption("Fraud Risk Intelligence")
     st.divider()
+
     st.markdown("## 🔐 FRAUDLENS")
     st.markdown("### ⚙️ Model Information")
+
     st.write("**Algorithm**")
     st.write(bundle.get("model_name", "Saved ML model"))
 
@@ -178,6 +396,7 @@ with st.sidebar:
 
     st.divider()
     st.markdown("### 📘 About this project")
+
     st.write(
         "An academic machine-learning project that estimates "
         "transaction fraud risk using anonymized transaction features."
@@ -188,25 +407,79 @@ with st.sidebar:
     )
 
 # --------------------------------------------------
-# TOP OVERVIEW
+# DASHBOARD OVERVIEW
 # --------------------------------------------------
-st.markdown('<div class="section-title">📊 Dashboard Overview</div>',
-            unsafe_allow_html=True)
-st.caption("Upload transaction data to begin your analysis.")
+
+st.markdown(
+    '<div class="section-title">📊 Dashboard Overview</div>',
+    unsafe_allow_html=True,
+)
+
+st.caption("Upload compatible transaction data to begin your analysis.")
 
 overview1, overview2, overview3 = st.columns(3)
 
-overview1.metric("Model", bundle.get("model_name", "ML model"))
+overview1.metric(
+    "Model",
+    bundle.get("model_name", "ML model"),
+)
 overview2.metric("Risk threshold", f"{threshold:.2%}")
 overview3.metric("Required features", len(feature_columns))
 
 st.divider()
 
 # --------------------------------------------------
+# FIRST-TIME USER GUIDE
+# --------------------------------------------------
+
+with st.expander(
+    "👋 First time here? Read this quick guide",
+    expanded=True,
+):
+    st.markdown("""
+    ### How to use FRAUDLENS
+
+    **Step 1 — Upload or explore**
+
+    Select a compatible transaction CSV, or use the sample dataset
+    to explore the dashboard.
+
+    **Step 2 — Check your data**
+
+    FRAUDLENS checks that required features exist and contain
+    valid numeric values.
+
+    **Step 3 — Review predictions**
+
+    Examine the risk summary, charts and transaction-level results.
+
+    **Step 4 — Download results**
+
+    Download the analysis as a CSV file for further review.
+
+    ### CSV format requirements
+
+    - Include every feature required by the saved model.
+    - The original dataset commonly uses `Time`, `V1`–`V28`
+      and `Amount`. The saved model's feature list is authoritative.
+    - Required features must contain numeric, finite values.
+    - Keep the original feature meanings, units and preprocessing
+      assumptions unchanged.
+    - Extra columns are retained in the results but are not used
+      as model inputs unless required by the saved model.
+
+    **Important:** a high-risk prediction is not proof of fraud,
+    and a low-risk prediction is not a guarantee of safety.
+    """)
+
+# --------------------------------------------------
 # DATA INPUT
 # --------------------------------------------------
-st.markdown('<div class="section-title">📂 Transaction Workspace</div>',
-            unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="section-title">📂 Transaction Workspace</div>',
+    unsafe_allow_html=True,
+)
 
 upload_col, sample_col = st.columns([1.5, 1])
 
@@ -214,107 +487,87 @@ with upload_col:
     uploaded_file = st.file_uploader(
         "Upload transaction data",
         type=["csv"],
-        help="Use the original compatible format: Time, V1–V28, Amount."
+        help=(
+            "Upload a CSV containing every required model feature. "
+            "The original dataset commonly uses Time, V1–V28 and Amount."
+        ),
     )
 
 with sample_col:
     st.markdown("#### 🧪 Explore the demo")
+
     st.write(
-        "New to the dashboard? Use the sample dataset to explore "
+        "New to the dashboard? Load the sample dataset to explore "
         "the results without uploading your own file."
     )
+
     sample_clicked = st.button(
         "✨ Try Sample Transactions",
         type="primary",
-        use_container_width=True
+        use_container_width=True,
     )
 
-data = None
+# Persist the sample selection across Streamlit reruns.
+if "use_sample_transactions" not in st.session_state:
+    st.session_state["use_sample_transactions"] = False
 
 if uploaded_file is not None:
+    st.session_state["use_sample_transactions"] = False
+
+if sample_clicked:
+    st.session_state["use_sample_transactions"] = True
+
+data = None
+source_name = None
+
+if uploaded_file is not None:
+    source_name = uploaded_file.name
+
     try:
-        data = pd.read_csv(uploaded_file)
-        st.info("📄 Your uploaded dataset is selected.")
-    except Exception:
+        data = read_csv_safely(uploaded_file)
+        st.info(f"📄 Selected file: {source_name}")
+
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
+
+elif st.session_state["use_sample_transactions"]:
+    source_name = SAMPLE_PATH.name
+
+    if not SAMPLE_PATH.exists():
         st.error(
-            "We couldn't read this file. Please upload a valid CSV file."
+            "The sample dataset was not found. Place "
+            "`sample_transactions.csv` in the same folder as `app.py`."
         )
         st.stop()
 
-elif sample_clicked:
     try:
-        data = pd.read_csv(SAMPLE_PATH)
-        st.success("🌟 Sample dataset loaded! Let's explore the results.")
-    except Exception:
-        st.error(
-            "The sample dataset could not be loaded. "
-            "Check that sample_transactions.csv is in the app folder."
-        )
+        data = read_csv_safely(SAMPLE_PATH)
+        st.success("🌟 Sample dataset loaded successfully.")
+
+    except ValueError as exc:
+        st.error(f"Sample dataset problem: {exc}")
         st.stop()
 
 # --------------------------------------------------
 # VALIDATION AND PREDICTION
 # --------------------------------------------------
+
 if data is not None:
     st.divider()
+
     st.markdown(
         '<div class="section-title">🔍 Analysis Results</div>',
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
-    if data.empty:
-        st.error(
-            "This file has no transaction rows yet. "
-            "Add data and upload it again."
-        )
-        st.stop()
+    try:
+        X_input = validate_features(data)
 
-    if data.columns.duplicated().any():
-        st.error(
-            "Some column names are duplicated. Please correct the CSV "
-            "so every column has a unique name."
-        )
-        st.stop()
-
-    missing = sorted(set(feature_columns) - set(data.columns))
-
-    if missing:
-        st.error("Some required model features are missing.")
-        st.write("Missing features:", ", ".join(missing))
+    except ValueError as exc:
+        st.error(str(exc))
         st.info(
-            "This model requires the original Time, V1–V28 and Amount "
-            "feature format. An unrelated dataset cannot be made "
-            "compatible simply by renaming its columns."
-        )
-        st.stop()
-
-    if len(data) > 100000:
-        st.error(
-            "This demo supports up to 100,000 rows per upload. "
-            "Please split your file into smaller CSVs."
-        )
-        st.stop()
-
-    X_input = data[feature_columns].copy()
-
-    for col in feature_columns:
-        X_input[col] = pd.to_numeric(X_input[col], errors="coerce")
-
-    if X_input.isna().any().any():
-        bad_cols = X_input.columns[
-            X_input.isna().any()
-        ].tolist()
-        st.error(
-            "Missing or non-numeric values were found in: "
-            + ", ".join(bad_cols)
-        )
-        st.info("Correct those values and upload the CSV again.")
-        st.stop()
-
-    if not np.isfinite(X_input.to_numpy(dtype=float)).all():
-        st.error(
-            "The dataset contains infinite or invalid numeric values. "
-            "Please clean the affected cells and try again."
+            "Correct the listed problems in your CSV and upload it again."
         )
         st.stop()
 
@@ -323,21 +576,20 @@ if data is not None:
     )
 
     try:
-        if "Time" in feature_columns and "Amount" in feature_columns:
-            X_input[["Time", "Amount"]] = scaler.transform(
-                X_input[["Time", "Amount"]]
-            )
-
-        probabilities = model.predict_proba(X_input)[:, 1]
-        predictions = (probabilities >= threshold).astype(int)
+        probabilities, predictions = predict_transactions(X_input)
 
         results = data.copy()
+
         results["Fraud Probability (%)"] = (
             probabilities * 100
         ).round(2)
+
         results["Predicted Fraud"] = predictions
+
         results["Risk Level"] = np.where(
-            predictions == 1, "High Risk", "Low Risk"
+            predictions == 1,
+            "High Risk",
+            "Low Risk",
         )
 
         total = len(results)
@@ -345,108 +597,147 @@ if data is not None:
         low_risk = total - flagged
         avg_probability = float(probabilities.mean() * 100)
 
-        # Summary cards
+        # ------------------------------------------
+        # RISK SUMMARY
+        # ------------------------------------------
+
         st.markdown("#### 📌 Risk Summary")
+
         m1, m2, m3, m4 = st.columns(4)
+
         m1.metric("Transactions analyzed", f"{total:,}")
         m2.metric("⚠️ High-risk flags", f"{flagged:,}")
         m3.metric("✓ Low-risk predictions", f"{low_risk:,}")
-        m4.metric("Average estimated probability", f"{avg_probability:.2f}%")
+        m4.metric(
+            "Average estimated probability",
+            f"{avg_probability:.2f}%",
+        )
 
-        # Friendly result messages
         if flagged == 0:
             st.success(
-                "✨ All clear for this batch! The model did not flag any "
-                "transactions at the current threshold. This does not "
-                "guarantee that every transaction is legitimate."
-            )
-        elif flagged == total:
-            st.warning(
-                "🔔 Every transaction in this batch was flagged as high "
-                "risk. Review the data and model outputs carefully; "
-                "a flag is not proof of fraud."
-            )
-        else:
-            st.warning(
-                f"🔎 The model flagged {flagged:,} of {total:,} "
-                "transactions for further review. Check the results "
-                "before drawing conclusions."
+                "No transactions were flagged at the current threshold. "
+                "This does not guarantee that every transaction is safe."
             )
 
-        # Visual analytics
+        elif flagged == total:
+            st.warning(
+                "Every transaction was flagged as high risk. Review "
+                "the input data and predictions carefully. A flag is "
+                "not proof of fraud."
+            )
+
+        else:
+            st.warning(
+                f"The model flagged {flagged:,} of {total:,} "
+                "transactions for further review. A prediction is "
+                "not a confirmed fraud finding."
+            )
+
+        # ------------------------------------------
+        # VISUAL ANALYTICS
+        # ------------------------------------------
+
         st.markdown("#### 📈 Visual Insights")
+
         chart1, chart2 = st.columns(2)
 
         with chart1:
             st.markdown("**Risk distribution**")
-            risk_counts = pd.DataFrame({
-                "Transactions": [low_risk, flagged]
-            }, index=["Low Risk", "High Risk"])
+
+            risk_counts = pd.DataFrame(
+                {"Transactions": [low_risk, flagged]},
+                index=["Low Risk", "High Risk"],
+            )
+
             st.bar_chart(risk_counts)
 
         with chart2:
-            st.markdown("**Fraud probability by transaction**")
+            st.markdown("**Estimated probability by transaction**")
+
             chart_data = pd.DataFrame({
                 "Estimated probability (%)": (
                     probabilities[:100] * 100
                 )
             })
+
             chart_data.index = range(1, len(chart_data) + 1)
+
             st.line_chart(chart_data)
+
             if total > 100:
                 st.caption("Chart displays the first 100 transactions.")
 
-        # Results table
+        # ------------------------------------------
+        # TRANSACTION RESULTS
+        # ------------------------------------------
+
         st.markdown("#### 🧾 Transaction-Level Results")
+
         risk_filter = st.selectbox(
             "Filter by risk level",
-            ["All transactions", "High Risk", "Low Risk"]
+            ["All transactions", "High Risk", "Low Risk"],
         )
 
         if risk_filter == "High Risk":
             display_results = results[
                 results["Risk Level"] == "High Risk"
             ]
+
         elif risk_filter == "Low Risk":
             display_results = results[
                 results["Risk Level"] == "Low Risk"
             ]
+
         else:
             display_results = results
+
+        st.caption(
+            f"Showing {len(display_results):,} of {total:,} transactions."
+        )
 
         st.dataframe(
             display_results,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
         )
+
+        # ------------------------------------------
+        # DOWNLOAD RESULTS
+        # ------------------------------------------
 
         st.download_button(
             "⬇️ Download Analysis Results",
             data=results.to_csv(index=False).encode("utf-8"),
-            file_name="sentinel_fraud_analysis.csv",
+            file_name="fraudlens_fraud_analysis.csv",
             mime="text/csv",
-            use_container_width=True
+            use_container_width=True,
         )
 
         st.caption(
-            "Risk labels are based on the saved model's decision "
-            "threshold. Model performance depends on the training data "
-            "and should be validated against verified labels."
+            "Risk labels use the saved model's decision threshold. "
+            "Probability estimates and model performance depend on "
+            "the training data and should be validated against "
+            "verified outcomes."
         )
 
-    except Exception:
+    except Exception as exc:
         st.error(
-            "The analysis could not be completed. Please verify that "
-            "your dataset matches the model's expected feature format."
+            "The analysis could not be completed. Verify that the "
+            "dataset matches the saved model's expected format and "
+            "that its preprocessing requirements are satisfied."
+        )
+        st.caption(
+            f"Technical detail: {type(exc).__name__}: {exc}"
         )
 
 else:
     st.info(
         "👋 Welcome! Upload a compatible CSV or select "
-        "'Try Sample Transactions' to see the dashboard in action."
+        "'Try Sample Transactions' to explore FRAUDLENS."
     )
 
     st.markdown("#### 🚀 Your workflow")
+
     step1, step2, step3 = st.columns(3)
 
     step1.markdown("### 01")
@@ -461,11 +752,16 @@ else:
     step3.write("**Review**")
     step3.caption("Explore charts and download the results.")
 
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
+
 st.divider()
+
 st.markdown(
     '<p class="small-muted" style="text-align:center;">'
     'FRAUDLENS • FRAUD RISK INTELLIGENCE<br>'
     'Academic portfolio project | Not for production banking decisions'
     '</p>',
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
