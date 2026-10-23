@@ -10,15 +10,14 @@ from pathlib import Path
 # --------------------------------------------------
 # PAGE CONFIGURATION
 # --------------------------------------------------
+
+APP_DIR = Path(__file__).resolve().parent
 st.set_page_config(
-    page_title="FRAUDLENS | Fraud Risk Intelligence"
+    page_title="FRAUDLENS | Fraud Risk Intelligence",
     page_icon="🔐",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-APP_DIR = Path(__file__).resolve().parent
-
 LOGO_PATH = APP_DIR / "fraudlens_logo.svg"
 LOGO_URI = (
     "data:image/svg+xml;base64,"
