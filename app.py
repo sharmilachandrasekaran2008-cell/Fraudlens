@@ -224,12 +224,19 @@ with sample_col:
         "New to the dashboard? Use the sample dataset to explore "
         "the results without uploading your own file."
     )
-    sample_clicked = st.button(
-        "✨ Try Sample Transactions",
-        type="primary",
-        use_container_width=True
-    )
+ 
+if "use_sample" not in st.session_state:
+    st.session_state["use_sample"] = False
 
+sample_clicked = st.button(
+    "✨ Try Sample Transactions",
+    type="primary",
+    use_container_width=True
+)
+
+if sample_clicked:
+    st.session_state["use_sample"] = True
+  
 data = None
 
 if uploaded_file is not None:
