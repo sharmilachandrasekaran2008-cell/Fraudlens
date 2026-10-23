@@ -326,24 +326,29 @@ except Exception:
         "the model file is present in the application folder."
     )
     st.stop()
-
 # --------------------------------------------------
-# HEADER
+# FRAUDLENS | PREMIUM HERO HEADER
 # --------------------------------------------------
 st.markdown(f"""
 <div class="hero">
-    <div class="eyebrow">INTELLIGENCE • ANALYTICS • SECURITY</div>
+    <div class="eyebrow">INTELLIGENCE / ANALYTICS / SECURITY</div>
     {
         f'<img src="{LOGO_URI}" alt="FRAUDLENS logo" '
-        'style="width:100%;max-width:440px;height:auto;'
-        'display:block;margin:12px auto 18px;">'
-        if LOGO_URI else '<h1>FRAUDLENS</h1>'
+        'style="width:100%;max-width:390px;height:auto;'
+        'display:block;margin:18px 0 22px;">'
+        if LOGO_URI else
+        '<h1>FRAUDLENS</h1>'
     }
-    <p><b>Fraud Risk Intelligence Platform</b></p>
-    <p>Explore transaction patterns, estimate fraud risk, and turn
-       model predictions into clear, actionable insights.</p>
+    <p class="hero-subtitle">Fraud Risk Intelligence Platform</p>
+    <p>
+        Turn transaction data into meaningful risk insights.
+        Explore model-estimated fraud probabilities, identify
+        transactions for review, and export your analysis.
+    </p>
+    <span class="hero-badge">● MACHINE LEARNING RISK ANALYSIS</span>
 </div>
 """, unsafe_allow_html=True)
+
 
 # --------------------------------------------------
 # SIDEBAR
