@@ -380,27 +380,69 @@ with st.sidebar:
     )
 
 # --------------------------------------------------
-# TOP OVERVIEW
+# TOP OVERVIEW | MODEL SNAPSHOT
 # --------------------------------------------------
-st.markdown('<div class="section-title">📊 Dashboard Overview</div>',
-            unsafe_allow_html=True)
-st.caption("Upload transaction data to begin your analysis.")
+st.markdown(
+    '<div class="section-title">Dashboard Overview</div>',
+    unsafe_allow_html=True
+)
+st.markdown(
+    '<div class="section-subtitle">'
+    'Your model configuration at a glance.'
+    '</div>',
+    unsafe_allow_html=True
+)
 
 overview1, overview2, overview3 = st.columns(3)
 
-overview1.metric("Model", bundle.get("model_name", "ML model"))
-overview2.metric("Risk threshold", f"{threshold:.2%}")
-overview3.metric("Required features", len(feature_columns))
+with overview1:
+    st.metric(
+        label="MODEL",
+        value=bundle.get("model_name", "ML model")
+    )
+
+with overview2:
+    st.metric(
+        label="DECISION THRESHOLD",
+        value=f"{threshold:.2%}"
+    )
+
+with overview3:
+    st.metric(
+        label="REQUIRED FEATURES",
+        value=f"{len(feature_columns)}"
+    )
+
+st.markdown(
+    '<p class="small-muted">'
+    'MODEL READY &nbsp; • &nbsp; '
+    'FEATURE CONFIGURATION LOADED &nbsp; • &nbsp; '
+    'PREDICTIONS ARE ESTIMATES'
+    '</p>',
+    unsafe_allow_html=True
+)
 
 st.divider()
+
+
 
 # --------------------------------------------------
 # DATA INPUT
 # --------------------------------------------------
-st.markdown('<div class="section-title">📂 Transaction Workspace</div>',
-            unsafe_allow_html=True)
 
 upload_col, sample_col = st.columns([1.5, 1])
+
+st.markdown(
+    '<div class="section-title">Transaction Workspace</div>',
+    unsafe_allow_html=True
+)
+st.markdown(
+    '<div class="section-subtitle">'
+    'Import your transaction dataset or explore the dashboard '
+    'with the provided demo data.'
+    '</div>',
+    unsafe_allow_html=True
+)
 
 with upload_col:
     uploaded_file = st.file_uploader(
