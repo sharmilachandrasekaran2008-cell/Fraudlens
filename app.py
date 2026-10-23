@@ -11,7 +11,7 @@ from pathlib import Path
 # PAGE CONFIGURATION
 # --------------------------------------------------
 st.set_page_config(
-    page_title="Sentinel | Fraud Risk Intelligence",
+    page_title="Fraudlens | Fraud Risk Intelligence",
     page_icon="🔐",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -163,7 +163,7 @@ st.markdown(f"""
 # SIDEBAR
 # --------------------------------------------------
 with st.sidebar:
-    st.markdown("## 🔐 Sentinel")
+    st.markdown("## 🔐 Fraudlens")
     st.caption("Fraud Risk Intelligence")
     st.divider()
 
@@ -465,7 +465,7 @@ else:
 st.divider()
 st.markdown(
     '<p class="small-muted" style="text-align:center;">'
-    'SENTINEL • FRAUD RISK INTELLIGENCE<br>'
+    'FRAUDLENS • FRAUD RISK INTELLIGENCE<br>'
     'Academic portfolio project | Not for production banking decisions'
     '</p>',
     unsafe_allow_html=True
