@@ -424,7 +424,7 @@ if data is not None:
         st.download_button(
             "⬇️ Download Analysis Results",
             data=results.to_csv(index=False).encode("utf-8"),
-            file_name="sentinel_fraud_analysis.csv",
+            file_name="fraudlens_fraud_analysis.csv",
             mime="text/csv",
             use_container_width=True
         )
