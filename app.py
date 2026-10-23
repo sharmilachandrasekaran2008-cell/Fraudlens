@@ -846,53 +846,53 @@ if data is not None:
 # --------------------------------------------------
 # DOWNLOAD RESULTS | CSV, EXCEL, PDF
 # --------------------------------------------------
-st.markdown("#### 📥 Export Your Analysis")
-st.caption(
-    "Download the full transaction results or a shareable PDF summary."
-)
+       st.markdown("#### 📥 Export Your Analysis")
+       st.caption(
+            "Download the full transaction results or a shareable PDF summary."
+       )
 
-csv_col, excel_col, pdf_col = st.columns(3)
+       csv_col, excel_col, pdf_col = st.columns(3)
 
-with csv_col:
-    st.download_button(
-        "⬇️ Download CSV",
-        data=results.to_csv(index=False).encode("utf-8"),
-        file_name="fraudlens_fraud_analysis.csv",
-        mime="text/csv",
-        use_container_width=True,
-        key="download_csv",
-    )
+       with csv_col:
+           st.download_button(
+           "⬇️ Download CSV",
+           data=results.to_csv(index=False).encode("utf-8"),
+           file_name="fraudlens_fraud_analysis.csv",
+           mime="text/csv",
+           use_container_width=True,
+           key="download_csv",
+           )
 
-with excel_col:
-    excel_bytes = make_excel_report(
-        results, total, flagged, avg_probability, threshold
-    )
-    st.download_button(
-        "📊 Download Excel",
-        data=excel_bytes,
-        file_name="fraudlens_fraud_analysis.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
-        key="download_excel",
-    )
+       with excel_col:
+           excel_bytes = make_excel_report(
+           results, total, flagged, avg_probability, threshold
+           )
+           st.download_button(
+            "📊 Download Excel",
+            data=excel_bytes,
+            file_name="fraudlens_fraud_analysis.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="download_excel",
+            )
 
-with pdf_col:
-    try:
-        pdf_bytes = make_pdf_report(
+      with pdf_col:
+          try:
+          pdf_bytes = make_pdf_report(
             results, total, flagged, avg_probability, threshold
-        )
-        st.download_button(
+           )
+          st.download_button(
             "📄 Download PDF",
             data=pdf_bytes,
             file_name="fraudlens_fraud_report.pdf",
             mime="application/pdf",
             use_container_width=True,
             key="download_pdf",
-        )
-    except Exception as e:
-        st.error("PDF generation failed. Check the report dependencies.")
-        with st.expander("PDF error details"):
-            st.code(f"{type(e).__name__}: {e}")
+           )
+      except Exception as e:
+          st.error("PDF generation failed. Check the report dependencies.")
+          with st.expander("PDF error details"):
+              st.code(f"{type(e).__name__}: {e}")
    
         
 
