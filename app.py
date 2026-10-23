@@ -31,95 +31,281 @@ MODEL_PATH = APP_DIR / "fraud_detection_model_v2.joblib"
 SAMPLE_PATH = APP_DIR / "sample_transactions.csv"
 
 # --------------------------------------------------
-# PROFESSIONAL DARK THEME
+# FRAUDLENS | PREMIUM DARK NAVY + TEAL THEME
 # --------------------------------------------------
 st.markdown("""
 <style>
+:root {
+    --bg: #07111F;
+    --panel: #0D1B2B;
+    --panel-raised: #112438;
+    --border: #20384D;
+    --teal: #36E0C0;
+    --text: #F2F7FC;
+    --muted: #9BB0C5;
+}
+
 .stApp {
-    background: linear-gradient(145deg, #07111F 0%, #0B1728 55%, #101F32 100%);
-    color: #E8F0FA;
+    background:
+        radial-gradient(ellipse at 10% 0%, #123047 0%, transparent 35%),
+        linear-gradient(145deg, #06101D 0%, #091625 52%, #0A1928 100%);
+    color: var(--text);
 }
+
+[data-testid="stHeader"] {
+    background: rgba(7, 17, 31, 0.85);
+}
+
 [data-testid="stSidebar"] {
-    background: #0A1423;
-    border-right: 1px solid #24364B;
+    background: linear-gradient(180deg, #091523 0%, #0D1D2D 100%);
+    border-right: 1px solid var(--border);
 }
+
+[data-testid="stSidebar"] > div {
+    padding-top: 1.5rem;
+}
+
 .block-container {
+    max-width: 1500px;
     padding-top: 2rem;
     padding-bottom: 3rem;
-    max-width: 1450px;
 }
+
+h1, h2, h3 {
+    color: var(--text);
+    letter-spacing: -0.4px;
+}
+
+p, label, .stMarkdown {
+    color: inherit;
+}
+
 .hero {
-    padding: 30px;
-    border: 1px solid #29445A;
-    border-radius: 22px;
-    background: linear-gradient(120deg, #10263B, #102D35);
-    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+    padding: 34px 36px;
+    border: 1px solid #28516A;
+    border-radius: 24px;
+    background:
+        radial-gradient(ellipse at 90% 0%, #15514F 0%, transparent 42%),
+        linear-gradient(120deg, #10243A 0%, #102D3A 55%, #0B3436 100%);
+    margin-bottom: 28px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
 }
+
+.hero::after {
+    content: "";
+    position: absolute;
+    width: 220px;
+    height: 220px;
+    right: -100px;
+    bottom: -140px;
+    border: 1px solid rgba(54, 224, 192, 0.3);
+    border-radius: 50%;
+    box-shadow:
+        0 0 0 25px rgba(54, 224, 192, 0.035),
+        0 0 0 50px rgba(54, 224, 192, 0.025);
+    pointer-events: none;
+}
+
 .eyebrow {
-    color: #4DE0C1;
-    font-size: 12px;
-    font-weight: 700;
+    color: var(--teal);
+    font-size: 11px;
+    font-weight: 800;
     letter-spacing: 3px;
     text-transform: uppercase;
 }
+
 .hero h1 {
-    color: #F4F8FF;
-    font-size: 38px;
-    margin: 10px 0;
-    line-height: 1.2;
+    color: #F6FAFF;
+    font-size: clamp(30px, 4vw, 46px);
+    font-weight: 800;
+    margin: 12px 0 8px;
+    line-height: 1.12;
 }
+
 .hero p {
-    color: #B5C7D9;
+    color: #BDD0DF;
     font-size: 15px;
-    margin-bottom: 0;
+    line-height: 1.7;
+    max-width: 760px;
 }
-.section-title {
-    color: #F4F8FF;
-    font-size: 21px;
+
+.hero-subtitle {
+    color: #F1F8FC !important;
+    font-size: 17px !important;
     font-weight: 700;
-    margin-top: 12px;
+    margin-bottom: 5px !important;
 }
-.small-muted {
-    color: #91A6BB;
+
+.hero-badge {
+    display: inline-block;
+    margin-top: 15px;
+    padding: 7px 12px;
+    border: 1px solid rgba(54, 224, 192, 0.35);
+    border-radius: 999px;
+    background: rgba(54, 224, 192, 0.08);
+    color: #79F0D7;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.section-title {
+    color: #F3F8FE;
+    font-size: 23px;
+    font-weight: 750;
+    letter-spacing: -0.5px;
+    margin-top: 8px;
+    margin-bottom: 3px;
+}
+
+.section-subtitle {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 18px;
+}
+
+div[data-testid="stMetric"] {
+    background: linear-gradient(145deg, #12263A 0%, #0C1A2A 100%);
+    border: 1px solid #284258;
+    border-radius: 17px;
+    padding: 20px 21px;
+    min-height: 118px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+div[data-testid="stMetric"]:hover {
+    border-color: #3ABDA9;
+    transform: translateY(-2px);
+}
+
+div[data-testid="stMetricLabel"] {
+    color: #A8BED1;
     font-size: 13px;
 }
-div[data-testid="stMetric"] {
-    background: #101F31;
-    border: 1px solid #263D52;
-    padding: 18px;
-    border-radius: 15px;
-}
-div[data-testid="stMetricLabel"] {
-    color: #A9BED1;
-}
+
 div[data-testid="stMetricValue"] {
-    color: #F2F8FF;
+    color: #F4F9FF;
+    font-weight: 750;
+    font-size: clamp(21px, 2.3vw, 30px);
 }
-.stButton > button, .stDownloadButton > button {
-    border-radius: 10px;
-    border: 1px solid #3BCDB5;
-    min-height: 44px;
-    font-weight: 600;
+
+div[data-testid="stMetricDelta"] {
+    font-size: 12px;
 }
-.stButton > button[kind="primary"] {
-    background: #21B99E;
-    color: #061821;
-}
+
 div[data-testid="stFileUploader"] {
-    background: #101F31;
-    border: 1px dashed #3A586D;
-    padding: 15px;
-    border-radius: 14px;
+    background: #0D1D2D;
+    border: 1px dashed #3A6679;
+    border-radius: 16px;
+    padding: 18px;
 }
-div[data-testid="stDataFrame"] {
-    border: 1px solid #263D52;
+
+div[data-testid="stFileUploader"] section {
+    border: none;
+}
+
+div[data-testid="stFileUploaderDropzone"] {
+    background: #112438;
+    border: 1px dashed #41677C;
     border-radius: 12px;
 }
+
+div[data-testid="stFileUploaderDropzone"]:hover {
+    border-color: var(--teal);
+}
+
+.stButton > button,
+.stDownloadButton > button {
+    border-radius: 11px;
+    min-height: 45px;
+    font-weight: 700;
+    border: 1px solid #367C7B;
+    transition: all 0.2s ease;
+}
+
+.stButton > button[kind="primary"] {
+    background: linear-gradient(110deg, #32D9B6, #20B89F);
+    color: #061923;
+    border: 1px solid #48E8CB;
+}
+
+.stButton > button[kind="primary"]:hover {
+    background: #70F0D8;
+    border-color: #70F0D8;
+    color: #061923;
+}
+
+.stDownloadButton > button {
+    background: #102A3B;
+    color: #74EBD5;
+    border-color: #337C7B;
+}
+
+.stDownloadButton > button:hover {
+    background: #173C4B;
+    color: #FFFFFF;
+    border-color: #50DCC3;
+}
+
+div[data-testid="stDataFrame"] {
+    border: 1px solid #284258;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+div[data-testid="stAlert"] {
+    border-radius: 12px;
+}
+
+.stSelectbox > div > div,
+.stTextInput > div > div {
+    background-color: #102237;
+    border-color: #304C62;
+    border-radius: 10px;
+}
+
+[data-testid="stMarkdownContainer"] hr,
 hr {
-    border-color: #263D52;
+    border-color: #233B50;
+}
+
+.small-muted {
+    color: #8EA7BD;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+}
+
+div[data-testid="stCaptionContainer"] {
+    color: #8EA7BD;
+}
+
+[data-testid="stSidebar"] .stMetric {
+    background: #102135;
+}
+
+@media (max-width: 768px) {
+    .block-container {
+        padding-top: 1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .hero {
+        padding: 24px 20px;
+        border-radius: 18px;
+    }
+
+    .hero h1 {
+        font-size: 30px;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
+
+
 
 # --------------------------------------------------
 # MODEL LOADING
